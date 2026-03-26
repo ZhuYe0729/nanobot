@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import re
 import os
@@ -22,8 +23,10 @@ from nanobot.agent.tools.cron import CronTool
 from nanobot.agent.skills import BUILTIN_SKILLS_DIR
 from nanobot.agent.tools.filesystem import EditFileTool, ListDirTool, ReadFileTool, WriteFileTool
 from nanobot.agent.tools.message import MessageTool
+from nanobot.agent.tools.base import Tool
 from nanobot.agent.tools.registry import ToolRegistry
 from nanobot.agent.tools.shell import ExecTool
+from nanobot.agent.tools.self import SelfTool
 from nanobot.agent.tools.spawn import SpawnTool
 from nanobot.agent.tools.web import WebFetchTool, WebSearchTool
 from nanobot.bus.events import InboundMessage, OutboundMessage
@@ -125,6 +128,16 @@ class AgentLoop:
             max_completion_tokens=provider.generation.max_tokens,
         )
         self._register_default_tools()
+        self.tools.register(SelfTool(loop=self))
+        self._config_defaults: dict[str, Any] = {
+            "max_iterations": max_iterations,
+            "context_window_tokens": context_window_tokens,
+            "context_budget_tokens": context_budget_tokens,
+            "model": self.model,
+        }
+        self._runtime_vars: dict[str, Any] = {}
+        self._unregistered_tools: dict[str, Tool] = {}
+        self._backup_critical_tools()
         self.commands = CommandRouter()
         register_builtin_commands(self.commands)
 
@@ -173,9 +186,42 @@ class AgentLoop:
         finally:
             self._mcp_connecting = False
 
+    def _backup_critical_tools(self) -> None:
+        """Create immutable backups of tools that must never be missing."""
+        self._critical_tool_backup: dict[str, Tool] = {}
+        for name in ("self", "message", "read_file"):
+            tool = self.tools.get(name)
+            if tool:
+                try:
+                    self._critical_tool_backup[name] = copy.deepcopy(tool)
+                except Exception as e:
+                    logger.warning("Cannot deepcopy tool '{}': {}", name, e)
+                    self._critical_tool_backup[name] = tool
+
+    def _watchdog_check(self) -> None:
+        """Detect and correct dangerous runtime states at the start of each iteration."""
+        defaults = self._config_defaults
+        if not (1 <= self.max_iterations <= 100):
+            logger.warning("Watchdog: resetting max_iterations {} -> {}", self.max_iterations, defaults["max_iterations"])
+            self.max_iterations = defaults["max_iterations"]
+        if not (4096 <= self.context_window_tokens <= 1_000_000):
+            logger.warning("Watchdog: resetting context_window_tokens {} -> {}", self.context_window_tokens, defaults["context_window_tokens"])
+            self.context_window_tokens = defaults["context_window_tokens"]
+        if not (0 <= self.context_budget_tokens <= 1_000_000):
+            logger.warning("Watchdog: resetting context_budget_tokens {} -> {}", self.context_budget_tokens, defaults["context_budget_tokens"])
+            self.context_budget_tokens = defaults["context_budget_tokens"]
+        # Restore critical tools if they were somehow removed
+        for name, backup in self._critical_tool_backup.items():
+            if not self.tools.has(name):
+                logger.warning("Watchdog: restoring critical tool '{}'", name)
+                try:
+                    self.tools.register(copy.deepcopy(backup))
+                except Exception:
+                    self.tools.register(backup)
+
     def _set_tool_context(self, channel: str, chat_id: str, message_id: str | None = None) -> None:
         """Update context for all tools that need routing info."""
-        for name in ("message", "spawn", "cron"):
+        for name in ("message", "spawn", "cron", "self"):
             if tool := self.tools.get(name):
                 if hasattr(tool, "set_context"):
                     tool.set_context(channel, chat_id, *([message_id] if name == "message" else []))
@@ -225,6 +271,9 @@ class AgentLoop:
 
             def wants_streaming(self) -> bool:
                 return on_stream is not None
+
+            async def before_iteration(self, context: AgentHookContext) -> None:
+                loop_self._watchdog_check()
 
             async def on_stream(self, context: AgentHookContext, delta: str) -> None:
                 from nanobot.utils.helpers import strip_think
