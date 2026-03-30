@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -10,6 +11,8 @@ from nanobot.agent.hook import AgentHook, AgentHookContext
 from nanobot.agent.tools.registry import ToolRegistry
 from nanobot.providers.base import LLMProvider, ToolCallRequest
 from nanobot.utils.helpers import build_assistant_message
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_MAX_ITERATIONS_MESSAGE = (
     "I reached the maximum number of tool call iterations ({max_iterations}) "
@@ -106,6 +109,12 @@ class AgentRunner:
                 usage["cached_tokens"] = usage.get("cached_tokens", 0) + iter_usage["cached_tokens"]
             context.response = response
             context.usage = iter_usage
+            logger.debug(
+                "LLM usage: prompt=%d completion=%d cached=%s",
+                iter_usage["prompt_tokens"],
+                iter_usage["completion_tokens"],
+                iter_usage.get("cached_tokens", 0),
+            )
             context.tool_calls = list(response.tool_calls)
 
             if response.has_tool_calls:
