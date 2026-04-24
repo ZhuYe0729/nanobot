@@ -16,6 +16,7 @@ from nanobot.agent.tools.filesystem import EditFileTool, ListDirTool, ReadFileTo
 from nanobot.agent.tools.registry import ToolRegistry
 from nanobot.agent.tools.search import GlobTool, GrepTool
 from nanobot.agent.tools.shell import ExecTool
+from nanobot.agent.tools.structured_csv import CsvReadTool
 from nanobot.agent.tools.web import WebFetchTool, WebSearchTool
 from nanobot.bus.events import InboundMessage
 from nanobot.bus.queue import MessageBus
@@ -50,6 +51,7 @@ class SubagentManager:
         model: str | None = None,
         web_config: "WebToolsConfig | None" = None,
         exec_config: "ExecToolConfig | None" = None,
+        csv_enabled: bool = True,
         restrict_to_workspace: bool = False,
     ):
         from nanobot.config.schema import ExecToolConfig
@@ -61,6 +63,7 @@ class SubagentManager:
         self.web_config = web_config or WebToolsConfig()
         self.max_tool_result_chars = max_tool_result_chars
         self.exec_config = exec_config or ExecToolConfig()
+        self.csv_enabled = csv_enabled
         self.restrict_to_workspace = restrict_to_workspace
         self.runner = AgentRunner(provider)
         self._running_tasks: dict[str, asyncio.Task[None]] = {}
@@ -114,6 +117,8 @@ class SubagentManager:
             allowed_dir = self.workspace if self.restrict_to_workspace else None
             extra_read = [BUILTIN_SKILLS_DIR] if allowed_dir else None
             tools.register(ReadFileTool(workspace=self.workspace, allowed_dir=allowed_dir, extra_allowed_dirs=extra_read))
+            if self.csv_enabled:
+                tools.register(CsvReadTool(workspace=self.workspace, allowed_dir=allowed_dir, extra_allowed_dirs=extra_read))
             tools.register(WriteFileTool(workspace=self.workspace, allowed_dir=allowed_dir))
             tools.register(EditFileTool(workspace=self.workspace, allowed_dir=allowed_dir))
             tools.register(ListDirTool(workspace=self.workspace, allowed_dir=allowed_dir))

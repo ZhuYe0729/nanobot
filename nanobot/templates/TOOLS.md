@@ -31,6 +31,16 @@ This file documents non-obvious constraints and usage patterns.
 - Prefer this over `exec` for code and history searches
 - Binary or oversized files may be skipped to keep results readable
 
+## csv_read — Sparse CSV Reading
+
+- Use `csv_read` before `read_file` for CSV analysis, especially when the task asks for counts, sums, filters, row lookup, or exact cell values
+- `csv_read` may be disabled by configuration (`tools.csv.enabled=false`); if unavailable, use `read_file`, `grep`, and executable scripts as usual
+- Start with `mode="scout"` to inspect schema, row/column counts, inferred column types, and compact samples
+- Use `mode="focus"` with `columns`, `filters`, `needles`, or `aggregate` to retrieve only task-relevant evidence instead of the whole table
+- Use `mode="verify"` with `verify={row, column, expected}` to confirm exact values before citing critical numbers
+- Prefer `aggregate` operations (`count`, `sum`, `avg`, `min`, `max`, `distinct`, `topk`) over manually counting rows from a full CSV read
+- Fall back to `read_file` only when you need literal CSV formatting that `csv_read` cannot provide
+
 ## cron — Scheduled Reminders
 
 - Please refer to cron skill for usage.
