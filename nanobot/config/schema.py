@@ -58,6 +58,22 @@ class DreamConfig(Base):
         return f"every {hours}h"
 
 
+class ContextManagerConfig(Base):
+    """Context window pruning configuration.
+
+    When enabled, tool results are trimmed before being appended to the
+    message history so the model sees less redundant or oversized content.
+    See nanobot/context_manager/ for implementation details.
+    """
+
+    enabled: bool = False
+    max_file_lines: int = Field(default=500, ge=1)   # trigger truncation above this many lines
+    head_lines: int = Field(default=200, ge=1)        # lines kept from the start of a large file
+    tail_lines: int = Field(default=50, ge=1)         # lines kept from the end of a large file
+    max_exec_lines: int = Field(default=200, ge=1)    # exec output truncation threshold
+    repeat_read_head_lines: int = Field(default=50, ge=1)  # preview lines shown for repeat reads
+
+
 class AgentDefaults(Base):
     """Default agent configuration."""
 
@@ -76,6 +92,7 @@ class AgentDefaults(Base):
     reasoning_effort: str | None = None  # low / medium / high - enables LLM thinking mode
     timezone: str = "UTC"  # IANA timezone, e.g. "Asia/Shanghai", "America/New_York"
     dream: DreamConfig = Field(default_factory=DreamConfig)
+    context_manager: ContextManagerConfig = Field(default_factory=ContextManagerConfig)
 
 
 class AgentsConfig(Base):

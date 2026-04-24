@@ -212,6 +212,9 @@ class AgentLoop:
         self._start_time = time.time()
         self._last_usage: dict[str, int] = {}
         self._extra_hooks: list[AgentHook] = hooks or []
+        if defaults.context_manager.enabled:
+            from nanobot.context_manager import ContextPrunerHook
+            self._extra_hooks = [ContextPrunerHook(defaults.context_manager), *self._extra_hooks]
 
         self.context = ContextBuilder(workspace, timezone=timezone)
         self.sessions = session_manager or SessionManager(workspace)
