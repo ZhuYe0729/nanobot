@@ -27,6 +27,7 @@ from nanobot.agent.tools.search import GlobTool, GrepTool
 from nanobot.agent.tools.shell import ExecTool
 from nanobot.agent.tools.spawn import SpawnTool
 from nanobot.agent.tools.structured_csv import CsvReadTool
+from nanobot.agent.tools.structured_json import JsonReadTool
 from nanobot.agent.tools.web import WebFetchTool, WebSearchTool
 from nanobot.bus.events import InboundMessage, OutboundMessage
 from nanobot.command import CommandContext, CommandRouter, register_builtin_commands
@@ -38,7 +39,7 @@ from nanobot.utils.helpers import image_placeholder_text, truncate_text
 from nanobot.utils.runtime import EMPTY_FINAL_RESPONSE_MESSAGE
 
 if TYPE_CHECKING:
-    from nanobot.config.schema import ChannelsConfig, CsvToolConfig, ExecToolConfig, WebToolsConfig
+    from nanobot.config.schema import ChannelsConfig, CsvToolConfig, ExecToolConfig, JsonToolConfig, WebToolsConfig
     from nanobot.cron.service import CronService
 
 
@@ -176,6 +177,7 @@ class AgentLoop:
         web_config: WebToolsConfig | None = None,
         exec_config: ExecToolConfig | None = None,
         csv_config: CsvToolConfig | None = None,
+        json_config: JsonToolConfig | None = None,
         cron_service: CronService | None = None,
         restrict_to_workspace: bool = False,
         session_manager: SessionManager | None = None,
@@ -184,7 +186,7 @@ class AgentLoop:
         timezone: str | None = None,
         hooks: list[AgentHook] | None = None,
     ):
-        from nanobot.config.schema import CsvToolConfig, ExecToolConfig, WebToolsConfig
+        from nanobot.config.schema import CsvToolConfig, ExecToolConfig, JsonToolConfig, WebToolsConfig
 
         defaults = AgentDefaults()
         self.bus = bus
@@ -210,6 +212,7 @@ class AgentLoop:
         self.web_config = web_config or WebToolsConfig()
         self.exec_config = exec_config or ExecToolConfig()
         self.csv_config = csv_config or CsvToolConfig()
+        self.json_config = json_config or JsonToolConfig()
         self.cron_service = cron_service
         self.restrict_to_workspace = restrict_to_workspace
         self._start_time = time.time()
@@ -232,6 +235,7 @@ class AgentLoop:
             max_tool_result_chars=self.max_tool_result_chars,
             exec_config=self.exec_config,
             csv_enabled=self.csv_config.enabled,
+            json_enabled=self.json_config.enabled,
             restrict_to_workspace=restrict_to_workspace,
         )
 
@@ -274,6 +278,8 @@ class AgentLoop:
         self.tools.register(ReadFileTool(workspace=self.workspace, allowed_dir=allowed_dir, extra_allowed_dirs=extra_read))
         if self.csv_config.enabled:
             self.tools.register(CsvReadTool(workspace=self.workspace, allowed_dir=allowed_dir, extra_allowed_dirs=extra_read))
+        if self.json_config.enabled:
+            self.tools.register(JsonReadTool(workspace=self.workspace, allowed_dir=allowed_dir, extra_allowed_dirs=extra_read))
         for cls in (WriteFileTool, EditFileTool, ListDirTool):
             self.tools.register(cls(workspace=self.workspace, allowed_dir=allowed_dir))
         for cls in (GlobTool, GrepTool):

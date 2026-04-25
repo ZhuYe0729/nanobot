@@ -41,6 +41,17 @@ This file documents non-obvious constraints and usage patterns.
 - Prefer `aggregate` operations (`count`, `sum`, `avg`, `min`, `max`, `distinct`, `topk`) over manually counting rows from a full CSV read
 - Fall back to `read_file` only when you need literal CSV formatting that `csv_read` cannot provide
 
+## json_read — Sparse JSON Reading
+
+- Use `json_read` before `read_file` for JSON analysis, especially for large config files, nested records, arrays of objects, or exact path checks
+- `json_read` may be disabled by configuration (`tools.json.enabled=false`); if unavailable, use `read_file`, `grep`, and executable scripts as usual
+- Start with `mode="scout"` to inspect root type, top-level keys, arrays, and compact path/type summaries without reading the full JSON
+- Use `mode="focus"` with `paths`, `needles`, `array_path`, `filters`, or `aggregate` to retrieve only task-relevant evidence
+- Path syntax is JSONPath-lite: `$`, `$.foo.bar`, `foo.bar`, and `$.items[0].name`; complex JSONPath predicates are not supported
+- Use `array_path` plus relative filter paths for arrays of objects, for example `array_path="$.users"` and `filters=[{"path":"role","op":"eq","value":"admin"}]`
+- Use `mode="verify"` with `verify={path, expected}` before citing critical values
+- Fall back to `read_file` only when you need literal formatting or unsupported path syntax
+
 ## cron — Scheduled Reminders
 
 - Please refer to cron skill for usage.
